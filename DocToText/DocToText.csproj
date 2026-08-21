@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyTitle>DocToText</AssemblyTitle>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <StartupObject>DocToText.Program</StartupObject>
+    <AcceptNpoiOsmfLicense>true</AcceptNpoiOsmfLicense>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <NoWarn>1701;1702;CS0162</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <NoWarn>1701;1702;CS0162</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocSharp.Binary.Doc" Version="0.21.0" />
+    <PackageReference Include="DocSharp.Docx" Version="0.21.0" />
+    <PackageReference Include="NPOI" Version="2.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MarkdownFiles Include="$(SolutionDir)*.md" />
+  </ItemGroup>
+
+  <Target Name="CopyMarkdownFiles" AfterTargets="Build">
+    <Copy
+      SourceFiles="@(MarkdownFiles)"
+      DestinationFolder="$(TargetDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
