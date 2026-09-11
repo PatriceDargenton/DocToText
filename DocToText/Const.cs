@@ -16,7 +16,7 @@ namespace DocToText
         /// <summary>
         /// The current version date of the application in dd/MM/yyyy format.
         /// </summary>
-        public const string DateVersion = "21/08/2026";
+        public const string DateVersion = "11/09/2026";
 
         /// <summary>
         /// The subtitle describing the application's primary functionality.
@@ -75,6 +75,23 @@ namespace DocToText
         /// Sometimes it works, but it's not reliable.
         /// </summary>
         public const bool UseDocSharpBinaryDocToDocx = false;
+
+        /// <summary>
+        /// Determines whether to use a simplified text conversion method that ignores footnotes and endnotes.
+        /// No more useful, because footnotes and endnotes are now exported whitout numbering.
+        /// </summary>
+        public const bool UseTextSimple = false;
+
+
+        /// <summary>
+        /// Numbered footnotes and endnotes can make it difficult to compare versions of a document.
+        /// </summary>
+        public const bool UseNumberedNotes = false;
+
+        /// <summary>
+        /// Remove the first space at the beginning of each footnote and endnote (version without numbered notes).
+        /// </summary>
+        public const bool TrimStartNotes = true;
 
         /// <summary>
         /// The file path to the LibreOffice executable (soffice.exe) used for document conversions.

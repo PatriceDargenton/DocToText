@@ -113,6 +113,8 @@ public partial class FrmDocToText : Form
             ConversionMenuEnum.text.ToRegistryKey());
         var markdownMenuExists = RegistryHelper.MenuExists(extName, 
             ConversionMenuEnum.markdown.ToRegistryKey());
+        if (!Const.UseTextSimple) return textMenuExists && markdownMenuExists;
+        
         var text_simpleMenuExists = RegistryHelper.MenuExists(extName, 
             ConversionMenuEnum.text_simple.ToRegistryKey());
         return textMenuExists && markdownMenuExists && text_simpleMenuExists;
@@ -154,11 +156,12 @@ public partial class FrmDocToText : Form
             ConversionMenuEnum.markdown.ToDescription(),
             $"{exe} --{ConversionMenuEnum.markdown} \"%1\"");
 
-        RegistryHelper.CreateMenu(
-            extName,
-            ConversionMenuEnum.text_simple.ToRegistryKey(),
-            ConversionMenuEnum.text_simple.ToDescription(),
-            $"{exe} --{ConversionMenuEnum.text_simple} \"%1\"");
+        if (Const.UseTextSimple)
+            RegistryHelper.CreateMenu(
+                extName,
+                ConversionMenuEnum.text_simple.ToRegistryKey(),
+                ConversionMenuEnum.text_simple.ToDescription(),
+                $"{exe} --{ConversionMenuEnum.text_simple} \"%1\"");
     }
 
     private static void RegisterDocContextMenus(string extName)
@@ -176,7 +179,8 @@ public partial class FrmDocToText : Form
     {
         RegistryHelper.DeleteMenu(extName, ConversionMenuEnum.text.ToRegistryKey());
         RegistryHelper.DeleteMenu(extName, ConversionMenuEnum.markdown.ToRegistryKey());
-        RegistryHelper.DeleteMenu(extName, ConversionMenuEnum.text_simple.ToRegistryKey());
+        if (Const.UseTextSimple)
+            RegistryHelper.DeleteMenu(extName, ConversionMenuEnum.text_simple.ToRegistryKey());
     }
     
     private static void UnregisterDocContextMenus(string extName)

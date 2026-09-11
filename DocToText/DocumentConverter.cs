@@ -130,8 +130,11 @@ internal static class DocumentConverter
                 var includeFootnoteMarkers = 
                     (mode == ConversionMenuEnum.text_simple) ? false : true;
                 if (includeFootnoteMarkers) 
-                { 
-                    output = ExportToPlainText(doc);
+                {
+                    if (Const.UseNumberedNotes)
+                        output = ExportToPlainTextWithNumberedNotes(doc);
+                    else
+                        output = ExportToPlainText(doc, filePath);
 
                     // Does not work: footnotes and endnotes markers are included,
                     //  but without the notes themselves
@@ -234,7 +237,12 @@ internal static class DocumentConverter
         return sb.ToString();
     }
 
-    static string ExportToPlainText(XWPFDocument doc)
+    /// <summary>
+    /// First version: Footnotes and endnotes are included in the output, but with numbering.
+    /// </summary>
+    /// <param name="doc"></param>
+    /// <returns></returns>
+    static string ExportToPlainTextWithNumberedNotes(XWPFDocument doc)
     {
         // Build text from main document body only (paragraphs and tables).
         var sb = new StringBuilder();
@@ -264,8 +272,163 @@ internal static class DocumentConverter
                 }
             }
         }
-        
+
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Second version: Footnotes and endnotes are included in the output, but without numbering.
+    /// </summary>
+    /// <param name="doc"></param>
+    /// <returns></returns>
+    static string ExportToPlainText(XWPFDocument doc, string docxFilePath)
+    {
+        // Load note dictionaries (id -> text) from the DOCX package.
+        var footnotesDict = LoadNotesDict(docxFilePath, "word/footnotes.xml", "footnote");
+        var endnotesDict  = LoadNotesDict(docxFilePath, "word/endnotes.xml",  "endnote");
+
+        var sb = new StringBuilder();
+
+        foreach (var bodyElem in doc.BodyElements)
+        {
+            if (bodyElem is XWPFParagraph para)
+            {
+                var paraSb = new StringBuilder();
+                var noteRefs = new List<(bool isEndnote, string id)>();
+                foreach (var run in para.Runs)
+                    AppendRunTextWithNoteRefs(run, paraSb, noteRefs);
+
+                sb.Append(paraSb);
+                // Append referenced note texts inline, without numbering.
+                foreach (var (isEndnote, id) in noteRefs)
+                {
+                    var dict = isEndnote ? endnotesDict : footnotesDict;
+                    if (dict.TryGetValue(id, out var noteText))
+                        sb.Append(" [")
+                        .Append(Const.TrimStartNotes ? noteText.TrimStart() : noteText)
+                        .Append(']');
+                }
+                sb.AppendLine();
+            }
+            else if (bodyElem is XWPFTable table)
+            {
+                foreach (var row in table.Rows)
+                {
+                    var cells = row.GetTableCells().Select(c =>
+                    {
+                        var cellSb = new StringBuilder();
+                        foreach (var p in c.Paragraphs)
+                        {
+                            var noteRefs = new List<(bool isEndnote, string id)>();
+                            foreach (var run in p.Runs)
+                                AppendRunTextWithNoteRefs(run, cellSb, noteRefs);
+                            foreach (var (isEndnote, id) in noteRefs)
+                            {
+                                var dict = isEndnote ? endnotesDict : footnotesDict;
+                                if (dict.TryGetValue(id, out var noteText))
+                                    cellSb.Append(" [")
+                                    .Append(Const.TrimStartNotes ? noteText.TrimStart() : noteText)
+                                    .Append(']');
+                            }
+                        }
+                        return cellSb.ToString();
+                    });
+                    sb.AppendLine(string.Join("\t", cells));
+                }
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    static Dictionary<string, string> LoadNotesDict(string docxFilePath, string partPath, string noteElementName)
+    {
+        var result = new Dictionary<string, string>();
+        if (string.IsNullOrWhiteSpace(docxFilePath) || !File.Exists(docxFilePath)) return result;
+
+        try
+        {
+            using var zip = ZipFile.OpenRead(docxFilePath);
+            var entry = zip.GetEntry(partPath);
+            if (entry is null) return result;
+
+            using var stream = entry.Open();
+            var xml = XDocument.Load(stream);
+            XNamespace w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+            foreach (var n in xml.Root?.Elements(w + noteElementName) ?? [])
+            {
+                var type = (string?)n.Attribute(w + "type");
+                if (string.Equals(type, "separator", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(type, "continuationSeparator", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(type, "continuationNotice", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var idAttr = n.Attribute(w + "id");
+                if (idAttr is null) continue;
+                var id = (string)idAttr;
+
+                var textBuilder = new StringBuilder();
+                foreach (var t in n.Descendants(w + "t"))
+                {
+                    var value = (string?)t;
+                    if (!string.IsNullOrEmpty(value))
+                        textBuilder.Append(value);
+                }
+
+                var text = textBuilder.ToString();
+                if (!string.IsNullOrWhiteSpace(text))
+                    result[id] = text;
+            }
+        }
+        catch
+        {
+            // Ignore malformed or missing notes parts.
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reconstructs the text of a run and collects footnote/endnote reference IDs.
+    /// Emits an anonymous marker ([*] for footnote, [**] for endnote) without numbering.
+    /// </summary>
+    static void AppendRunTextWithNoteRefs(
+        XWPFRun run, StringBuilder sb, List<(bool isEndnote, string id)> noteRefs)
+    {
+        CT_R ctr = run.GetCTR();
+        for (int i = 0; i < ctr.Items.Count; i++)
+        {
+            var item = ctr.Items[i];
+            var kind = ctr.ItemsElementName[i];
+            switch (kind)
+            {
+                case RunItemsChoiceType.t:
+                    if (item is CT_Text text) sb.Append(text.Value);
+                    break;
+                case RunItemsChoiceType.tab:
+                    sb.Append('\t');
+                    break;
+                case RunItemsChoiceType.br:
+                case RunItemsChoiceType.cr:
+                    sb.Append(Environment.NewLine);
+                    break;
+                case RunItemsChoiceType.footnoteReference:
+                    if (item is CT_FtnEdnRef fnRef)
+                    {
+                        sb.Append("[footnoteRef]");
+                        noteRefs.Add((false, fnRef.id));
+                    }
+                    break;
+                case RunItemsChoiceType.endnoteReference:
+                    if (item is CT_FtnEdnRef enRef)
+                    {
+                        sb.Append("[endnoteRef]");
+                        noteRefs.Add((true, enRef.id));
+                    }
+                    break;
+            }
+        }
     }
 
     /// <summary>

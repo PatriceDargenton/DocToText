@@ -7,7 +7,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyTitle>DocToText</AssemblyTitle>
-    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <AssemblyVersion>1.0.2.0</AssemblyVersion>
     <StartupObject>DocToText.Program</StartupObject>
     <AcceptNpoiOsmfLicense>true</AcceptNpoiOsmfLicense>
   </PropertyGroup>
